@@ -94,9 +94,10 @@ void printserial(){
  
 void printtft(){
  
-  static float hum;  //relative humidity
-  static float ahum; //absolute humidity
-  static float temp; //temperature
+  static float hum;  //relative humidity [%]
+  static float ahum; //absolute humidity [%]
+  static float temp; //temperature [C]
+  static double pres; //atm.pressure [Pa]
  
 //draw date
   tft.setTextColor(ST77XX_YELLOW);
@@ -125,9 +126,9 @@ void printtft(){
   tft.setTextColor(ST77XX_GREEN);
   tft.setCursor (0, 70);
   tft.setTextSize(1);
-  tft.print ("Temp   ");
+  tft.print ("Tempr   ");
   tft.setTextSize(2);
-  tft.print ((int8_t)temp);
+  tft.print (round(temp));
   tft.setTextSize(1);
   tft.print (" C");
  
@@ -139,21 +140,22 @@ void printtft(){
   tft.setTextColor(ST77XX_GREEN);
   tft.setCursor (0, 90);
   tft.setTextSize(1);
-  tft.print ("Humi   ");
+  tft.print ("Humid   ");
   tft.setTextSize(2);
-  tft.print ((int8_t)hum);
+  tft.print (round(hum));
   tft.print ("/");
-  tft.print ((int8_t)ahum);
+  tft.print (round(ahum));
   tft.setTextSize(1);
   tft.print (" %");
  
 //draw pressure
+  pres = bmx280.getPressure() / 133.3d;
   tft.setTextColor(ST77XX_GREEN);
   tft.setCursor (0, 110);
   tft.setTextSize(1);
-  tft.print ("Pres   ");
+  tft.print ("Press   ");
   tft.setTextSize(2);
-  tft.print ((uint8_t)((float)bmx280.getPressure() / 133.3));
+  tft.print (round(pres));
   tft.setTextSize(1);
   tft.print (" mmHg");
 }
@@ -190,7 +192,9 @@ void setup() {
 //sound init and test
   pinMode(SOUNDpin, OUTPUT);
   tone(SOUNDpin, 200, 100);
+  delay(100);
   tone(SOUNDpin, 100, 100);
+  delay(100);
   noTone(SOUNDpin);
  
 //buttons on mcp23017 init
@@ -202,11 +206,12 @@ void setup() {
  
 //BME280 init
   tft.setTextColor(ST77XX_RED);
-  tft.setCursor(0,112);
+  tft.setTextSize(2);
+  tft.setCursor(0,0);
   if (!bmx280.begin()){
     Serial.println("BMP280 FAILED");
-    tft.print (" Temp sensor FAILED");
-    while (1);}
+    tft.print (" Meteo plugin FAILED");
+    while (1) delay(100);}
   bmx280.resetToDefaults();
   bmx280.writeOversamplingPressure(BMx280MI::OSRS_P_x16);
   bmx280.writeOversamplingTemperature(BMx280MI::OSRS_T_x16);
@@ -217,8 +222,8 @@ void setup() {
 //RTC init
   if (!rtc.begin()) {
     Serial.println("RTC FAILED");
-    tft.print ("RTC FAILED");
-    while (1);}
+    tft.print (" Meteo plugin FAILED");
+    while (1) delay(100);}
 
 //clear TFT
   delay(2000);
@@ -234,5 +239,5 @@ void loop() {
   //printserial();
   printtft();
   drawled();
-  delay(3000);
+  delay(5000);
 }
