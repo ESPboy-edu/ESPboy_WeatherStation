@@ -44,7 +44,7 @@ void drawled(){
   int8_t temp = bmx280.getTemperature();
   pixels.setPixelColor(0, pixels.Color(0,10,0));
   if (temp < 0) pixels.setPixelColor(0, pixels.Color(0,0,10));
-  if (temp > 30) pixels.setPixelColor(0, pixels.Color(10,0,0));
+  if (temp > 35) pixels.setPixelColor(0, pixels.Color(10,0,0));
   pixels.show();
 }
 
@@ -147,6 +147,8 @@ void printtft(){
   tft.print (round(ahum));
   tft.setTextSize(1);
   tft.print (" %");
+  tft.setCursor (0, 98);
+  tft.print ("rel/abs");
  
 //draw pressure
   pres = bmx280.getPressure() / 133.3d;
