@@ -126,11 +126,13 @@ void printtft(){
   tft.setTextColor(ST77XX_GREEN);
   tft.setCursor (0, 70);
   tft.setTextSize(1);
-  tft.print ("Tempr   ");
+  tft.print ("Tempe   ");
   tft.setTextSize(2);
   tft.print (round(temp));
   tft.setTextSize(1);
   tft.print (" C");
+  tft.setCursor (0, 78);
+  tft.print ("rature");
  
 //draw humidity
   hum = bmx280.getHumidity();
@@ -155,11 +157,13 @@ void printtft(){
   tft.setTextColor(ST77XX_GREEN);
   tft.setCursor (0, 110);
   tft.setTextSize(1);
-  tft.print ("Press   ");
+  tft.print ("Pres    ");
   tft.setTextSize(2);
   tft.print (round(pres));
   tft.setTextSize(1);
   tft.print (" mmHg");
+  tft.setCursor (0, 118);
+  tft.print ("sure");
 }
  
  
