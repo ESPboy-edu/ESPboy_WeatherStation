@@ -180,6 +180,13 @@ void setup() {
   pixels.setPixelColor(0, pixels.Color(0,0,0));
   pixels.show();
 
+//buttons on mcp23017 init
+  mcp.begin(MCP23017address);
+  delay(100);
+  for (int i=0;i<8;i++){ 
+     mcp.pinMode(i, INPUT);
+     mcp.pullUp(i, HIGH);}
+
 //TFT init    
   mcp.pinMode(csTFTMCP23017pin, OUTPUT);
   mcp.digitalWrite(csTFTMCP23017pin, LOW);
@@ -203,17 +210,10 @@ void setup() {
   delay(100);
   noTone(SOUNDpin);
  
-//buttons on mcp23017 init
-  mcp.begin(MCP23017address);
-  delay(100);
-  for (int i=0;i<8;i++){ 
-     mcp.pinMode(i, INPUT);
-     mcp.pullUp(i, HIGH);}
- 
 //BME280 init
   tft.setTextColor(ST77XX_RED);
-  tft.setTextSize(2);
-  tft.setCursor(0,0);
+  tft.setTextSize(1);
+  tft.setCursor(0,120);
   if (!bmx280.begin()){
     Serial.println("BMP280 FAILED");
     tft.print (" Meteo plugin FAILED");
