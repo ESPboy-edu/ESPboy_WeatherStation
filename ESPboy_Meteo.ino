@@ -1,12 +1,14 @@
 #include <Wire.h>
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_MCP23017.h>
+#include <Adafruit_MCP4725.h>
 #include <Adafruit_ST7735.h>
 #include <Adafruit_GFX.h>
 #include <ESP8266WiFi.h>
 #include "ESPboyLogo.h"
 #include <BMx280MI.h>
 #include "RTClib.h"
+#include "Adafruit_SGP30.h"
  
 #define LEDquantity     1
 #define MCP23017address 0 // actually it's 0x20 but in <Adafruit_MCP23017.h> lib there is (x|0x20) :)
@@ -31,11 +33,13 @@
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(LEDquantity, LEDpin, NEO_GRB + NEO_KHZ800);
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 Adafruit_MCP23017 mcp;
+Adafruit_MCP4725 dac;
 BMx280I2C bmx280(0x76);
 RTC_DS3231 rtc;
+Adafruit_SGP30 sgp;
  
-//const char *daysOfTheWeek[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-//const char *months[] = {"Jun", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sen", "Oct", "Nov", "Dec"};
+const char *daysOfTheWeek[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+const char *months[] = {"Jun", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sen", "Oct", "Nov", "Dec"};
 static DateTime now;
 uint8_t buttonspressed[8];
 
@@ -45,10 +49,11 @@ void drawled(){
   pixels.setPixelColor(0, pixels.Color(0,10,0));
   if (temp < 0) pixels.setPixelColor(0, pixels.Color(0,0,10));
   if (temp > 35) pixels.setPixelColor(0, pixels.Color(10,0,0));
+  if (sgp.eCO2 > 1200 || sgp.TVOC > 2000) pixels.setPixelColor(0, pixels.Color(10,0,0));
   pixels.show();
 }
 
- 
+/*
 uint8_t checkbuttons(){
   uint8_t check = 0;
   for (int i = 0; i < 8; i++){
@@ -60,6 +65,7 @@ uint8_t checkbuttons(){
   }
   return (check);
 }
+*/
  
 /*
 void printserial(){
@@ -101,20 +107,21 @@ void printtft(){
  
 //draw date
   tft.setTextColor(ST77XX_YELLOW);
-  tft.setTextSize(2);
-  tft.setCursor (6, 0);
+  tft.setTextSize(1);
+  tft.setCursor (18, 0);
   if (now.day() < 10) tft.print ("0");
   tft.print (now.day());
-  tft.print (".");
-  if (now.month() < 10) tft.print ("0");
-  tft.print (now.month());
-  tft.print (".");
+  tft.print (" ");
+  tft.print (months[now.month() - 1]);
+  tft.print (" ");
   tft.print (now.year());
+  tft.print (" ");
+  tft.print (daysOfTheWeek[now.dayOfTheWeek()]);
  
 //draw time
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(3);
-  tft.setCursor (22, 32);
+  tft.setCursor (22, 18);
   if (now.hour() < 10) tft.print ("0");
   tft.print (now.hour());
   tft.print (":");
@@ -124,7 +131,7 @@ void printtft(){
 //draw temp
   temp = bmx280.getTemperature();
   tft.setTextColor(ST77XX_GREEN);
-  tft.setCursor (0, 70);
+  tft.setCursor (0, 49);
   tft.setTextSize(1);
   tft.print ("Temp   ");
   tft.setTextSize(2);
@@ -138,7 +145,7 @@ void printtft(){
   ahum = 216.7f * ((hum / 100.0f) * 6.112f * exp((17.62f * temp) / (243.12f + temp)) / (273.15f + temp));
   if (ahum >99) ahum=99;
   tft.setTextColor(ST77XX_GREEN);
-  tft.setCursor (0, 90);
+  tft.setCursor (0, 69);
   tft.setTextSize(1);
   tft.print ("Humid  ");
   tft.setTextSize(2);
@@ -153,18 +160,33 @@ void printtft(){
 //draw pressure
   pres = bmx280.getPressure() / 133.3d;
   tft.setTextColor(ST77XX_GREEN);
-  tft.setCursor (0, 110);
+  tft.setCursor (0, 89);
   tft.setTextSize(1);
   tft.print ("Atm.pr ");
   tft.setTextSize(2);
   tft.print (round(pres));
   tft.setTextSize(1);
   tft.print ("mmHg");
+
+  //draw CO2
+  sgp.setHumidity(ahum);
+  if (sgp.IAQmeasure()) {
+    tft.setTextColor(ST77XX_MAGENTA);
+    tft.setCursor (0, 109);
+    tft.setTextSize(1);
+    tft.print ("eCO2:  ");
+    tft.print (sgp.eCO2);
+    tft.print (" ppm");
+    tft.setCursor (0, 119);
+    tft.print ("TVOC:  ");
+    tft.print (sgp.TVOC);
+    tft.print (" ppb");
+  }
 }
  
  
 void setup() {
-  Serial.begin(115200); //serial init
+  Serial.begin(9600); //serial init
   Wire.begin(); //I2C init
   delay(100);
   WiFi.mode(WIFI_OFF); // to safe some battery power
@@ -226,6 +248,16 @@ void setup() {
     Serial.println("RTC FAILED");
     tft.print (" Meteo plugin FAILED");
     while (1) delay(100);}
+
+//SGP30 init
+  if (!sgp.begin()){
+    tft.print (" Meteo plugin FAILED");
+    while (1) delay(100);}
+
+//DAC init 
+dac.begin(0x60);
+delay (100);
+dac.setVoltage(4095, false);
 
 //clear TFT
   delay(2000);
