@@ -14,12 +14,14 @@
 #define MCP23017address 0 // actually it's 0x20 but in <Adafruit_MCP23017.h> lib there is (x|0x20) :)
 
 //buttons
-#define UP_BUTTON       1
-#define DOWN_BUTTON     2
-#define LEFT_BUTTON     0
-#define RIGHT_BUTTON    3
-#define ACT_BUTTON      4
-#define ESC_BUTTON      5
+#define UP_BUTTON       (buttonspressed&2)
+#define DOWN_BUTTON     (buttonspressed&4)
+#define LEFT_BUTTON     (buttonspressed&1)
+#define RIGHT_BUTTON    (buttonspressed&8)
+#define ACT_BUTTON      (buttonspressed&16)
+#define ESC_BUTTON      (buttonspressed&32)
+#define LFT_BUTTON      (buttonspressed&64)
+#define RGT_BUTTON      (buttonspressed&128)
  
 //SPI for LCD
 #define csTFTMCP23017pin  8 //chip select pin on the MCP23017 for TFT display
@@ -39,9 +41,77 @@ RTC_DS3231 rtc;
 Adafruit_SGP30 sgp;
  
 const char *daysOfTheWeek[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-const char *months[] = {"Jun", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sen", "Oct", "Nov", "Dec"};
+const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sen", "Oct", "Nov", "Dec"};
 static DateTime now;
-uint8_t buttonspressed[8];
+static uint16_t lcdbrightness = 650;
+static uint16_t buttonspressed;
+static float hum;  //relative humidity [%]
+static float ahum; //absolute humidity [%]
+static float temp; //temperature [C]
+static double pres; //atm.pressure [Pa]
+
+
+
+uint16_t checkbuttons(){
+  buttonspressed = ~mcp.readGPIOAB()&255;
+  return (buttonspressed);
+}
+
+
+void runButtonsCommand(){
+  pixels.setPixelColor(0, pixels.Color(0,0,20));
+  pixels.show();
+  tone (SOUNDpin, 800, 20);
+  if (LFT_BUTTON && lcdbrightness > 300) 
+  {
+    lcdbrightness-=30;
+    dac.setVoltage(lcdbrightness, false);
+  }
+  if (RGT_BUTTON && lcdbrightness < 650){ 
+    lcdbrightness+=30;
+    dac.setVoltage(lcdbrightness, false);
+  }
+  if (LEFT_BUTTON) {
+      if (now.day() < 31) rtc.adjust (DateTime(now.year(), now.month(), (now.day()+1), now.hour(), now.minute(), now.second()));
+      else rtc.adjust (DateTime(now.year(), now.month(), 1, now.hour(), now.minute(), now.second()));
+      now = rtc.now();
+  }
+  if (RIGHT_BUTTON) {
+       if (now.month() < 12) rtc.adjust (DateTime(now.year(), now.month()+1, now.day(), now.hour(), now.minute(), now.second()));
+       else rtc.adjust (DateTime(now.year(), 1, now.day(), now.hour(), now.minute(), now.second()));
+       now = rtc.now();
+  }
+  if (UP_BUTTON){
+       rtc.adjust (DateTime(now.year()+1, now.month(), now.day(), now.hour(), now.minute(), now.second()));
+       now = rtc.now();
+  }
+  if (DOWN_BUTTON){
+       rtc.adjust (DateTime(now.year()-1, now.month(), now.day(), now.hour(), now.minute(), now.second()));
+       now = rtc.now();
+  }
+  if (ACT_BUTTON){
+       if (now.hour() < 24) rtc.adjust (DateTime(now.year(), now.month(), now.day(), now.hour()+1, now.minute(), now.second()));
+       else rtc.adjust (DateTime(now.year(), now.month(), now.day(), 0, now.minute(), now.second()));
+       now = rtc.now();
+  }
+  if (ESC_BUTTON){
+       if (now.minute() < 60) rtc.adjust (DateTime(now.year(), now.month(), now.day(), now.hour(), now.minute()+1, 0));
+       else rtc.adjust (DateTime(now.year(), now.month(), now.day(), now.hour(), 0, 0));
+       now = rtc.now();
+   }
+}
+  
+
+void batVoltageDraw(){
+  uint16_t volt;
+  volt = analogRead(A0);
+  volt = map(volt, 820, 1024, 0, 99);
+  tft.setTextSize(1);
+  tft.setTextColor(ST77XX_WHITE);
+  tft.setCursor(110, 120);
+  tft.print(volt);
+  tft.print("%");
+}
 
 
 void drawled(){
@@ -49,23 +119,10 @@ void drawled(){
   pixels.setPixelColor(0, pixels.Color(0,10,0));
   if (temp < 0) pixels.setPixelColor(0, pixels.Color(0,0,10));
   if (temp > 35) pixels.setPixelColor(0, pixels.Color(10,0,0));
-  if (sgp.eCO2 > 1200 || sgp.TVOC > 2000) pixels.setPixelColor(0, pixels.Color(10,0,0));
+//  if (sgp.eCO2 > 1200 || sgp.TVOC > 2000) pixels.setPixelColor(0, pixels.Color(10,0,0));
   pixels.show();
 }
 
-/*
-uint8_t checkbuttons(){
-  uint8_t check = 0;
-  for (int i = 0; i < 8; i++){
-    if(!mcp.digitalRead(i)) {
-       buttonspressed[i] = 1;
-       check++;
-       delay(10);} // to avoid i2c bus ovelflow during long button keeping pressed
-    else buttonspressed[i] = 0;
-  }
-  return (check);
-}
-*/
  
 /*
 void printserial(){
@@ -100,15 +157,10 @@ void printserial(){
  
 void printtft(){
  
-  static float hum;  //relative humidity [%]
-  static float ahum; //absolute humidity [%]
-  static float temp; //temperature [C]
-  static double pres; //atm.pressure [Pa]
- 
 //draw date
   tft.setTextColor(ST77XX_YELLOW);
   tft.setTextSize(1);
-  tft.setCursor (18, 0);
+  tft.setCursor (20, 0);
   if (now.day() < 10) tft.print ("0");
   tft.print (now.day());
   tft.print (" ");
@@ -121,7 +173,7 @@ void printtft(){
 //draw time
   tft.setTextColor(ST77XX_WHITE);
   tft.setTextSize(3);
-  tft.setCursor (22, 18);
+  tft.setCursor (21, 18);
   if (now.hour() < 10) tft.print ("0");
   tft.print (now.hour());
   tft.print (":");
@@ -129,7 +181,6 @@ void printtft(){
   tft.print (now.minute());
  
 //draw temp
-  temp = bmx280.getTemperature();
   tft.setTextColor(ST77XX_GREEN);
   tft.setCursor (0, 49);
   tft.setTextSize(1);
@@ -140,10 +191,6 @@ void printtft(){
   tft.print ("C");
  
 //draw humidity
-  hum = bmx280.getHumidity();
-  if (hum >99) hum=99;
-  ahum = 216.7f * ((hum / 100.0f) * 6.112f * exp((17.62f * temp) / (243.12f + temp)) / (273.15f + temp));
-  if (ahum >99) ahum=99;
   tft.setTextColor(ST77XX_GREEN);
   tft.setCursor (0, 69);
   tft.setTextSize(1);
@@ -158,7 +205,6 @@ void printtft(){
   tft.print ("g/m3");
  
 //draw pressure
-  pres = bmx280.getPressure() / 133.3d;
   tft.setTextColor(ST77XX_GREEN);
   tft.setCursor (0, 89);
   tft.setTextSize(1);
@@ -169,19 +215,20 @@ void printtft(){
   tft.print ("mmHg");
 
   //draw CO2
-  sgp.setHumidity(ahum);
-  if (sgp.IAQmeasure()) {
-    tft.setTextColor(ST77XX_MAGENTA);
-    tft.setCursor (0, 109);
-    tft.setTextSize(1);
-    tft.print ("eCO2:  ");
-    tft.print (sgp.eCO2);
-    tft.print (" ppm");
-    tft.setCursor (0, 119);
-    tft.print ("TVOC:  ");
-    tft.print (sgp.TVOC);
-    tft.print (" ppb");
-  }
+ /*
+  tft.setTextColor(ST77XX_MAGENTA);
+  tft.setCursor (0, 109);   
+  tft.setTextSize(1);
+  tft.print ("eCO2:  ");
+  tft.print (sgp.eCO2);
+  tft.print (" ppm");
+  tft.setCursor (0, 119);
+  tft.print ("TVOC:  ");
+  tft.print (sgp.TVOC);
+  tft.print (" ppb");
+*/
+  
+  batVoltageDraw();
 }
  
  
@@ -234,7 +281,7 @@ void setup() {
   tft.setCursor(0,120);
   if (!bmx280.begin()){
     Serial.println("BMP280 FAILED");
-    tft.print (" Meteo plugin FAILED");
+    tft.print ("Meteo plugin FAILED B");
     while (1) delay(100);}
   bmx280.resetToDefaults();
   bmx280.writeOversamplingPressure(BMx280MI::OSRS_P_x16);
@@ -246,18 +293,19 @@ void setup() {
 //RTC init
   if (!rtc.begin()) {
     Serial.println("RTC FAILED");
-    tft.print (" Meteo plugin FAILED");
+    tft.print ("Meteo plugin FAILED R");
     while (1) delay(100);}
 
 //SGP30 init
+/*
   if (!sgp.begin()){
-    tft.print (" Meteo plugin FAILED");
+    tft.print ("Meteo plugin FAILED S");
     while (1) delay(100);}
-
+*/
 //DAC init 
 dac.begin(0x60);
 delay (100);
-dac.setVoltage(4095, false);
+dac.setVoltage(lcdbrightness, false);
 
 //clear TFT
   delay(2000);
@@ -266,12 +314,29 @@ dac.setVoltage(4095, false);
  
  
 void loop() {
-  bmx280.measure();
-  while (!bmx280.hasValue()) delay(100);
-  now = rtc.now();
-  tft.fillScreen(ST77XX_BLACK);
-  //printserial();
-  printtft();
-  drawled();
-  delay(5000);
+ static long count; 
+ if (millis() > count + 3000){
+     count = millis();
+     while (!bmx280.hasValue()) delay(100);
+     now = rtc.now();
+     bmx280.measure();
+     temp = bmx280.getTemperature();
+     hum = bmx280.getHumidity();
+     if (hum >99) hum=99;
+     ahum = 216.7f * ((hum / 100.0f) * 6.112f * exp((17.62f * temp) / (243.12f + temp)) / (273.15f + temp));
+     if (ahum >99) ahum=99;
+     pres = bmx280.getPressure() / 133.3d;
+//     sgp.setHumidity((double)ahum * 1000.0f);
+//     sgp.IAQmeasure();
+     tft.fillScreen(ST77XX_BLACK);
+     printtft();
+     drawled();
+ }
+  if (checkbuttons()) { 
+    runButtonsCommand(); 
+    tft.fillScreen(ST77XX_BLACK); 
+    printtft();
+    drawled();
+    while (checkbuttons()) delay(10);
+  }
 }
