@@ -1,3 +1,10 @@
+/*
+ESPboy Meteo station by RomanS
+
+ESPboy project page:
+https://hackaday.io/project/164830-espboy-beyond-the-games-platform-with-wifi
+*/
+
 #include <Wire.h>
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_MCP23017.h>
@@ -119,7 +126,7 @@ void drawled(){
   pixels.setPixelColor(0, pixels.Color(0,10,0));
   if (temp < 0) pixels.setPixelColor(0, pixels.Color(0,0,10));
   if (temp > 35) pixels.setPixelColor(0, pixels.Color(10,0,0));
-//  if (sgp.eCO2 > 1200 || sgp.TVOC > 2000) pixels.setPixelColor(0, pixels.Color(10,0,0));
+ // if (sgp.eCO2 > 1200 || sgp.TVOC > 2000) pixels.setPixelColor(0, pixels.Color(10,0,0));
   pixels.show();
 }
 
@@ -186,7 +193,7 @@ void printtft(){
   tft.setTextSize(1);
   tft.print ("Temp   ");
   tft.setTextSize(2);
-  tft.print (round(temp));
+  tft.print ((int16_t)round(temp));
   tft.setTextSize(1);
   tft.print ("C");
  
@@ -196,11 +203,11 @@ void printtft(){
   tft.setTextSize(1);
   tft.print ("Humid  ");
   tft.setTextSize(2);
-  tft.print (round(hum));
+  tft.print ((int16_t)round(hum));
   tft.setTextSize(1);
   tft.print ("% ");
   tft.setTextSize(2);
-  tft.print (round(ahum));
+  tft.print ((int16_t)round(ahum));
   tft.setTextSize(1);
   tft.print ("g/m3");
  
@@ -210,7 +217,7 @@ void printtft(){
   tft.setTextSize(1);
   tft.print ("Atm.pr ");
   tft.setTextSize(2);
-  tft.print (round(pres));
+  tft.print ((int16_t)round(pres));
   tft.setTextSize(1);
   tft.print ("mmHg");
 
@@ -297,11 +304,11 @@ void setup() {
     while (1) delay(100);}
 
 //SGP30 init
-/*
-  if (!sgp.begin()){
-    tft.print ("Meteo plugin FAILED S");
-    while (1) delay(100);}
-*/
+
+//  if (!sgp.begin()){
+//    tft.print ("Meteo plugin FAILED S");
+//    while (1) delay(100);}
+
 //DAC init 
 dac.begin(0x60);
 delay (100);
@@ -326,8 +333,8 @@ void loop() {
      ahum = 216.7f * ((hum / 100.0f) * 6.112f * exp((17.62f * temp) / (243.12f + temp)) / (273.15f + temp));
      if (ahum >99) ahum=99;
      pres = bmx280.getPressure() / 133.3d;
-//     sgp.setHumidity((double)ahum * 1000.0f);
-//     sgp.IAQmeasure();
+   //  sgp.setHumidity((double)ahum * 1000.0f);
+   //  sgp.IAQmeasure();
      tft.fillScreen(ST77XX_BLACK);
      printtft();
      drawled();
