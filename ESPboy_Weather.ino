@@ -9,11 +9,12 @@ https://hackaday.io/project/164830-espboy-beyond-the-games-platform-with-wifi
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_MCP23017.h>
 #include <Adafruit_MCP4725.h>
-#include <Adafruit_ST7735.h>
-#include <Adafruit_GFX.h>
+#include <TFT_eSPI.h>
+#include "ESPboyOTA.h"
+
 #include <ESP8266WiFi.h>
 #include "ESPboyLogo.h"
-#include <BMx280MI.h>
+#include <BMx280I2C.h>
 #include "RTClib.h"
 #include "Adafruit_SGP30.h"
  
@@ -21,31 +22,29 @@ https://hackaday.io/project/164830-espboy-beyond-the-games-platform-with-wifi
 #define MCP23017address 0 // actually it's 0x20 but in <Adafruit_MCP23017.h> lib there is (x|0x20) :)
 
 //buttons
-#define UP_BUTTON       (buttonspressed&2)
-#define DOWN_BUTTON     (buttonspressed&4)
-#define LEFT_BUTTON     (buttonspressed&1)
-#define RIGHT_BUTTON    (buttonspressed&8)
-#define ACT_BUTTON      (buttonspressed&16)
-#define ESC_BUTTON      (buttonspressed&32)
-#define LFT_BUTTON      (buttonspressed&64)
-#define RGT_BUTTON      (buttonspressed&128)
+#define PAD_LEFT        0x01
+#define PAD_UP          0x02
+#define PAD_DOWN        0x04
+#define PAD_RIGHT       0x08
+#define PAD_ACT         0x10
+#define PAD_ESC         0x20
+#define PAD_LFT         0x40
+#define PAD_RGT         0x80
+#define PAD_ANY         0xff
  
-//SPI for LCD
-#define csTFTMCP23017pin  8 //chip select pin on the MCP23017 for TFT display
-#define TFT_RST          -1
-#define TFT_DC            D8
-#define TFT_CS           -1
- 
+#define csTFTMCP23017pin  8 //chip select pin on the MCP23017 for TFT display 
 #define LEDpin            D4
 #define SOUNDpin          D3
  
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(LEDquantity, LEDpin, NEO_GRB + NEO_KHZ800);
-Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
+
 Adafruit_MCP23017 mcp;
 Adafruit_MCP4725 dac;
 BMx280I2C bmx280(0x76);
 RTC_DS3231 rtc;
 Adafruit_SGP30 sgp;
+TFT_eSPI tft = TFT_eSPI();
+ESPboyOTA* OTAobj = NULL;
  
 const char *daysOfTheWeek[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sen", "Oct", "Nov", "Dec"};
@@ -59,49 +58,46 @@ static double pres; //atm.pressure [Pa]
 
 
 
-uint16_t checkbuttons(){
-  buttonspressed = ~mcp.readGPIOAB()&255;
-  return (buttonspressed);
-}
+uint8_t getKeys() { return (~mcp.readGPIOAB() & 255); }
 
 
-void runButtonsCommand(){
+void runButtonsCommand(uint8_t bt){
   pixels.setPixelColor(0, pixels.Color(0,0,20));
   pixels.show();
   tone (SOUNDpin, 800, 20);
-  if (LFT_BUTTON && lcdbrightness > 300) 
+  if (bt&PAD_LFT && lcdbrightness > 300) 
   {
     lcdbrightness-=30;
     dac.setVoltage(lcdbrightness, false);
   }
-  if (RGT_BUTTON && lcdbrightness < 650){ 
+  if (bt&PAD_RGT && lcdbrightness < 650){ 
     lcdbrightness+=30;
     dac.setVoltage(lcdbrightness, false);
   }
-  if (LEFT_BUTTON) {
+  if (bt&PAD_LEFT) {
       if (now.day() < 31) rtc.adjust (DateTime(now.year(), now.month(), (now.day()+1), now.hour(), now.minute(), now.second()));
       else rtc.adjust (DateTime(now.year(), now.month(), 1, now.hour(), now.minute(), now.second()));
       now = rtc.now();
   }
-  if (RIGHT_BUTTON) {
+  if (bt&PAD_RIGHT) {
        if (now.month() < 12) rtc.adjust (DateTime(now.year(), now.month()+1, now.day(), now.hour(), now.minute(), now.second()));
        else rtc.adjust (DateTime(now.year(), 1, now.day(), now.hour(), now.minute(), now.second()));
        now = rtc.now();
   }
-  if (UP_BUTTON){
+  if (bt&PAD_UP){
        rtc.adjust (DateTime(now.year()+1, now.month(), now.day(), now.hour(), now.minute(), now.second()));
        now = rtc.now();
   }
-  if (DOWN_BUTTON){
+  if (bt&PAD_DOWN){
        rtc.adjust (DateTime(now.year()-1, now.month(), now.day(), now.hour(), now.minute(), now.second()));
        now = rtc.now();
   }
-  if (ACT_BUTTON){
+  if (bt&PAD_ACT){
        if (now.hour() < 24) rtc.adjust (DateTime(now.year(), now.month(), now.day(), now.hour()+1, now.minute(), now.second()));
        else rtc.adjust (DateTime(now.year(), now.month(), now.day(), 0, now.minute(), now.second()));
        now = rtc.now();
   }
-  if (ESC_BUTTON){
+  if (bt&PAD_ESC){
        if (now.minute() < 60) rtc.adjust (DateTime(now.year(), now.month(), now.day(), now.hour(), now.minute()+1, 0));
        else rtc.adjust (DateTime(now.year(), now.month(), now.day(), now.hour(), 0, 0));
        now = rtc.now();
@@ -114,7 +110,7 @@ void batVoltageDraw(){
   volt = analogRead(A0);
   volt = map(volt, 820, 1024, 0, 99);
   tft.setTextSize(1);
-  tft.setTextColor(ST77XX_WHITE);
+  tft.setTextColor(TFT_WHITE);
   tft.setCursor(110, 120);
   tft.print(volt);
   tft.print("%");
@@ -165,7 +161,7 @@ void printserial(){
 void printtft(){
  
 //draw date
-  tft.setTextColor(ST77XX_YELLOW);
+  tft.setTextColor(TFT_YELLOW);
   tft.setTextSize(1);
   tft.setCursor (20, 0);
   if (now.day() < 10) tft.print ("0");
@@ -178,7 +174,7 @@ void printtft(){
   tft.print (daysOfTheWeek[now.dayOfTheWeek()]);
  
 //draw time
-  tft.setTextColor(ST77XX_WHITE);
+  tft.setTextColor(TFT_WHITE);
   tft.setTextSize(3);
   tft.setCursor (21, 18);
   if (now.hour() < 10) tft.print ("0");
@@ -188,7 +184,7 @@ void printtft(){
   tft.print (now.minute());
  
 //draw temp
-  tft.setTextColor(ST77XX_GREEN);
+  tft.setTextColor(TFT_GREEN);
   tft.setCursor (0, 49);
   tft.setTextSize(1);
   tft.print ("Temp   ");
@@ -198,7 +194,7 @@ void printtft(){
   tft.print ("C");
  
 //draw humidity
-  tft.setTextColor(ST77XX_GREEN);
+  tft.setTextColor(TFT_GREEN);
   tft.setCursor (0, 69);
   tft.setTextSize(1);
   tft.print ("Humid  ");
@@ -212,7 +208,7 @@ void printtft(){
   tft.print ("g/m3");
  
 //draw pressure
-  tft.setTextColor(ST77XX_GREEN);
+  tft.setTextColor(TFT_GREEN);
   tft.setCursor (0, 89);
   tft.setTextSize(1);
   tft.print ("Atm.pr ");
@@ -223,7 +219,7 @@ void printtft(){
 
   //draw CO2
  /*
-  tft.setTextColor(ST77XX_MAGENTA);
+  tft.setTextColor(TFT_MAGENTA);
   tft.setCursor (0, 109);   
   tft.setTextSize(1);
   tft.print ("eCO2:  ");
@@ -252,27 +248,28 @@ void setup() {
   pixels.setPixelColor(0, pixels.Color(0,0,0));
   pixels.show();
 
-//buttons on mcp23017 init
+//MCP23017 init
   mcp.begin(MCP23017address);
   delay(100);
-  for (int i=0;i<8;i++){ 
-     mcp.pinMode(i, INPUT);
-     mcp.pullUp(i, HIGH);}
-
+  for (int i = 0; i < 8; ++i) {
+    mcp.pinMode(i, INPUT);
+    mcp.pullUp(i, HIGH);}
+  
+ 
 //TFT init    
   mcp.pinMode(csTFTMCP23017pin, OUTPUT);
   mcp.digitalWrite(csTFTMCP23017pin, LOW);
-  tft.initR(INITR_144GREENTAB);
-  delay (100);
+  tft.begin();
+  delay(100);
   tft.setRotation(0);
-  tft.fillScreen(ST77XX_BLACK);
+  tft.fillScreen(TFT_BLACK);
  
 //draw ESPboylogo 
-  tft.drawXBitmap(30, 24, ESPboyLogo, 68, 64, ST77XX_YELLOW);
+  tft.drawXBitmap(30, 24, ESPboyLogo, 68, 64, TFT_YELLOW);
   tft.setTextSize(1);
-  tft.setTextColor(ST77XX_YELLOW);
+  tft.setTextColor(TFT_YELLOW);
   tft.setCursor(50,102);
-  tft.print ("Meteo");
+  tft.print ("Weather");
  
 //sound init and test
   pinMode(SOUNDpin, OUTPUT);
@@ -281,14 +278,17 @@ void setup() {
   tone(SOUNDpin, 100, 100);
   delay(100);
   noTone(SOUNDpin);
+
+  if (getKeys()&PAD_ACT || getKeys()&PAD_ESC) OTAobj = new ESPboyOTA(&tft, &mcp);
+
  
 //BME280 init
-  tft.setTextColor(ST77XX_RED);
+  tft.setTextColor(TFT_RED);
   tft.setTextSize(1);
   tft.setCursor(0,120);
   if (!bmx280.begin()){
     Serial.println("BMP280 FAILED");
-    tft.print ("Meteo plugin FAILED B");
+    tft.print ("Weather module FAILED");
     while (1) delay(100);}
   bmx280.resetToDefaults();
   bmx280.writeOversamplingPressure(BMx280MI::OSRS_P_x16);
@@ -299,8 +299,7 @@ void setup() {
  
 //RTC init
   if (!rtc.begin()) {
-    Serial.println("RTC FAILED");
-    tft.print ("Meteo plugin FAILED R");
+    tft.print ("Weather plugin FAILED");
     while (1) delay(100);}
 
 //SGP30 init
@@ -316,7 +315,7 @@ dac.setVoltage(lcdbrightness, false);
 
 //clear TFT
   delay(2000);
-  tft.fillScreen(ST77XX_BLACK);
+  tft.fillScreen(TFT_BLACK);
 }
  
  
@@ -335,15 +334,16 @@ void loop() {
      pres = bmx280.getPressure() / 133.3d;
    //  sgp.setHumidity((double)ahum * 1000.0f);
    //  sgp.IAQmeasure();
-     tft.fillScreen(ST77XX_BLACK);
+     tft.fillScreen(TFT_BLACK);
      printtft();
      drawled();
  }
-  if (checkbuttons()) { 
-    runButtonsCommand(); 
-    tft.fillScreen(ST77XX_BLACK); 
+  uint8_t bt = getKeys();
+  if (bt) { 
+    runButtonsCommand(bt); 
+    tft.fillScreen(TFT_BLACK); 
     printtft();
     drawled();
-    while (checkbuttons()) delay(10);
+    delay(200);
   }
 }
