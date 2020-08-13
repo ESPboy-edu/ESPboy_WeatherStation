@@ -8,7 +8,7 @@ https://hackaday.io/project/164830-espboy-beyond-the-games-platform-with-wifi
 #include <Wire.h>
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_MCP23017.h>
-#include <Adafruit_MCP4725.h>
+#include <Adafruit_MCP4725.h>wea
 #include <TFT_eSPI.h>
 #include "ESPboyOTA.h"
 
@@ -268,7 +268,7 @@ void setup() {
   tft.drawXBitmap(30, 24, ESPboyLogo, 68, 64, TFT_YELLOW);
   tft.setTextSize(1);
   tft.setTextColor(TFT_YELLOW);
-  tft.setCursor(50,102);
+  tft.setCursor(44,102);
   tft.print ("Weather");
  
 //sound init and test
