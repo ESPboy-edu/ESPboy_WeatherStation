@@ -8,7 +8,7 @@ https://hackaday.io/project/164830-espboy-beyond-the-games-platform-with-wifi
 #include <Wire.h>
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_MCP23017.h>
-#include <Adafruit_MCP4725.h>wea
+#include <Adafruit_MCP4725.h>
 #include <TFT_eSPI.h>
 
 #include <ESP8266WiFi.h>
