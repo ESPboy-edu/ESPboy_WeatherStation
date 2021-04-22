@@ -10,7 +10,6 @@ https://hackaday.io/project/164830-espboy-beyond-the-games-platform-with-wifi
 #include <Adafruit_MCP23017.h>
 #include <Adafruit_MCP4725.h>wea
 #include <TFT_eSPI.h>
-#include "ESPboyOTA.h"
 
 #include <ESP8266WiFi.h>
 #include "ESPboyLogo.h"
@@ -44,7 +43,6 @@ BMx280I2C bmx280(0x76);
 RTC_DS3231 rtc;
 Adafruit_SGP30 sgp;
 TFT_eSPI tft = TFT_eSPI();
-ESPboyOTA* OTAobj = NULL;
  
 const char *daysOfTheWeek[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sen", "Oct", "Nov", "Dec"};
@@ -278,8 +276,6 @@ void setup() {
   tone(SOUNDpin, 100, 100);
   delay(100);
   noTone(SOUNDpin);
-
-  if (getKeys()&PAD_ACT || getKeys()&PAD_ESC) OTAobj = new ESPboyOTA(&tft, &mcp);
 
  
 //BME280 init
