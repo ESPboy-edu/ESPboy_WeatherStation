@@ -6,7 +6,6 @@ www.ESPboy.com
 https://hackaday.io/project/164830-espboy-beyond-the-games-platform-with-wifi
 */
 
-ADC_MODE(ADC_VCC);
 
 #include "lib/ESPboyInit.h"
 #include "lib/ESPboyInit.cpp"
@@ -24,6 +23,7 @@ static float hum;  //relative humidity [%]
 static float ahum; //absolute humidity [%]
 static float temp; //temperature [C]
 static double pres; //atm.pressure [Pa]
+static bool timemarker=true;
 
 
 void runButtonsCommand(uint8_t bt){
@@ -61,15 +61,6 @@ void runButtonsCommand(uint8_t bt){
 }
   
 
-void batVoltageDraw(){
-  uint8_t vcc;
-  vcc = map(ESP.getVcc(), 3500, 4200, 0, 100);
-  myESPboy.tft.setTextSize(1);
-  myESPboy.tft.setTextColor(TFT_WHITE);
-  myESPboy.tft.setCursor(110, 120);
-  myESPboy.tft.print(vcc);
-  myESPboy.tft.print("%");
-}
 
 void drawled(){
   int8_t temp = bmx280.getTemperature();
@@ -83,17 +74,17 @@ void drawled(){
 void printtft(){
  
 //draw date
+  String toPrint="";
   myESPboy.tft.setTextColor(TFT_YELLOW);
-  myESPboy.tft.setTextSize(1);
-  myESPboy.tft.setCursor (20, 0);
-  if (now.day() < 10) myESPboy.tft.print ("0");
-  myESPboy.tft.print (now.day());
-  myESPboy.tft.print (" ");
-  myESPboy.tft.print (months[now.month() - 1]);
-  myESPboy.tft.print (" ");
-  myESPboy.tft.print (now.year());
-  myESPboy.tft.print (" ");
-  myESPboy.tft.print (daysOfTheWeek[now.dayOfTheWeek()]);
+  if (now.day() < 10) toPrint+="0";
+  toPrint+=now.day();
+  toPrint+=" ";
+  toPrint+= months[now.month() - 1];
+  toPrint+=" ";
+  toPrint+=now.year();
+  toPrint+=" ";
+  toPrint+=daysOfTheWeek[now.dayOfTheWeek()];
+  myESPboy.tft.drawString(toPrint, 20,0, 1);
  
 //draw time
   myESPboy.tft.setTextColor(TFT_WHITE);
@@ -101,7 +92,8 @@ void printtft(){
   myESPboy.tft.setCursor (21, 18);
   if (now.hour() < 10) myESPboy.tft.print ("0");
   myESPboy.tft.print (now.hour());
-  myESPboy.tft.print (":");
+  if(timemarker)myESPboy.tft.print (":");
+  else myESPboy.tft.print ("|");
   if (now.minute() < 10) myESPboy.tft.print ("0");
   myESPboy.tft.print (now.minute());
  
@@ -139,7 +131,6 @@ void printtft(){
   myESPboy.tft.setTextSize(1);
   myESPboy.tft.print ("mmHg");
 
-  batVoltageDraw();
 }
  
  
@@ -171,27 +162,31 @@ void setup() {
  
 void loop() {
  static long count; 
- if (millis() > count + 3000){
+ 
+  if (millis() > count + 2000){
      count = millis();
+     timemarker=!timemarker;
      while (!bmx280.hasValue()) delay(100);
      now = rtc.now();
      bmx280.measure();
      temp = bmx280.getTemperature();
      hum = bmx280.getHumidity();
-     if (hum >99) hum=99;
-     ahum = 216.7f * ((hum / 100.0f) * 6.112f * exp((17.62f * temp) / (243.12f + temp)) / (273.15f + temp));
-     if (ahum >99) ahum=99;
      pres = bmx280.getPressure() / 133.3d;
+     ahum = 216.7f * ((hum / 100.0f) * 6.112f * exp((17.62f * temp) / (243.12f + temp)) / (273.15f + temp));
+     if (hum >99) hum=99;
+     if (ahum >99) ahum=99;
      myESPboy.tft.fillScreen(TFT_BLACK);
      printtft();
      drawled();
- }
+  }
+ 
   uint8_t bt = myESPboy.getKeys();
   if (bt) { 
     runButtonsCommand(bt); 
     myESPboy.tft.fillScreen(TFT_BLACK); 
     printtft();
     drawled();
-    delay(200);
   }
+  
+  delay(100);
 }
