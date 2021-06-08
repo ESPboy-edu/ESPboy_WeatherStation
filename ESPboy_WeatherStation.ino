@@ -63,10 +63,12 @@ void runButtonsCommand(uint8_t bt){
 
 
 void drawled(){
-  int8_t temp = bmx280.getTemperature();
-  myESPboy.myLED.setRGB(0,10,0);
-  if (temp < 0) myESPboy.myLED.setRGB(0,0,10);
-  if (temp > 35) myESPboy.myLED.setRGB(10,0,0);
+  uint8_t brightness;
+  if(timemarker) brightness=10;
+  else brightness=4;
+  myESPboy.myLED.setRGB(0,brightness,0);
+  if (temp < 0) myESPboy.myLED.setRGB(0,0,brightness);
+  if (temp > 30) myESPboy.myLED.setRGB(brightness,0,0);
 }
 
  
