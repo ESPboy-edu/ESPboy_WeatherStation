@@ -45,14 +45,14 @@ Consider the large number of defective BMP/BME280 modules on the market.
 - SCL -> SCL
 
 
-## 3. Upload this firmware
+## 4. Upload this firmware
 
 NOTE: Before compilation, set Arduino IDE settings
 
 -  Board:  ESP8266 WeMos D1 mini
 
 
-## 4. Useful links
+## 5. Useful links
 
 - [Buy ESPboy](https://www.tindie.com/products/23910/)
 - [DIY ESPboy](https://easyeda.com/ESPboy)
