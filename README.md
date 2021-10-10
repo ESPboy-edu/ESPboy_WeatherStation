@@ -31,10 +31,10 @@ Consider the large number of defective BMP/BME280 modules on the market.
 
 ## 2. Connect RTC3231 real time clock module to ESPboy
 
-- + -> VCC
-- – -> GND
-- D -> SDA
-- C -> SCL
+- ''+'' -> VCC
+- ''â€“'' -> GND
+- ''D'' -> SDA
+- ''C'' -> SCL
 
 
 ## 3. Connect BMP280 temperature/humidity/atmospheric pressure module real time clock module to ESPboy
