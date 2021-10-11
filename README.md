@@ -1,6 +1,6 @@
 # ESPboy weather station
 
-[Demo video](www.youtube.com)
+[Demo video](https://www.youtube.com/watch?v=kMUbZZwPxQg)
 
 The ESPboy weather station allows you to control time, ambient temperature, atmospheric pressure, relative and absolute humidity.
 It is based on a RTC3231 and BMP280 modules.
